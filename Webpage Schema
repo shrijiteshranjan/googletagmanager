@@ -1,0 +1,42 @@
+import Script from "next/script";
+
+type WebPageSchemaProps = Readonly<{
+  title: string;
+  description: string;
+  url: string;
+  siteName: string;
+  language?: string;
+}>;
+
+export default function WebPageSchema({
+  title,
+  description,
+  url,
+  siteName,
+  language = "en-IN",
+}: WebPageSchemaProps) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${url}`,
+    name: title,
+    description,
+    url,
+    inLanguage: language,
+    isPartOf: {
+      "@type": "WebSite",
+      "@id": `${url.split("/gold-price")[0]}`,
+      name: siteName,
+      url: url.split("/gold-price")[0],
+    },
+  };
+
+  return (
+    <Script
+      id="webpage-schema"
+      type="application/ld+json"
+      strategy="afterInteractive"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
