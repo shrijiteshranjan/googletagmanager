@@ -1,0 +1,343 @@
+import React from 'react';
+
+export interface NewsArticleData {
+  title: string;
+  description: string;
+  image: string[];
+  publishedTime: string;
+  modifiedTime?: string;
+  authors: string;
+  category: string;
+  slug: string;
+  url: string;
+  publisher: {
+    name: string;
+    logo: string;
+  };
+  highlights?: string;
+  articleBody?: string;
+  keywords?: string[];
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  item?: string;
+}
+
+export interface BreadcrumbData {
+  items: BreadcrumbItem[];
+}
+
+export interface WebsiteData {
+  name: string;
+  url: string;
+  id: string;
+  description: string;
+  potentialAction?: {
+    target: string;
+    queryInput: string;
+  };
+}
+
+export interface OrganizationData {
+  name: string;
+  url: string;
+  id: string;
+  logo: string;
+  sameAs: string[];
+  contactPoint?: {
+    telephone: string;
+    contactType: string;
+    areaServed: string;
+    availableLanguage: string;
+  };
+}
+
+export interface EventData {
+  name: string;
+  startDate: string;
+  endDate: string;
+  location: {
+    name: string;
+    address: string;
+  };
+  description: string;
+  image: string;
+  organizer: {
+    name: string;
+    url: string;
+  };
+}
+
+export interface VideoData {
+  name: string;
+  description: string;
+  thumbnailUrl: string;
+  uploadDate: string;
+  duration?: string;
+  contentUrl: string;
+  embedUrl: string;
+}
+
+export interface LocalBusinessData {
+  name: string;
+  id: string;
+  address: {
+    streetAddress: string;
+    addressLocality: string;
+    addressRegion: string;
+    postalCode: string;
+    addressCountry: string;
+  };
+  telephone?: string;
+  url: string;
+  geo?: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export interface FAQData {
+  questions: Array<{
+    question: string;
+    answer: string;
+  }>;
+}
+
+export type SchemaType =
+  | 'NewsArticle'
+  | 'BreadcrumbList'
+  | 'Website'
+  | 'WebPage'
+  | 'Organization'
+  | 'Event'
+  | 'VideoObject'
+  | 'LocalBusiness'
+  | 'FAQPage';
+
+interface SchemaManagerProps {
+  type: SchemaType;
+  data: NewsArticleData | BreadcrumbData | WebsiteData | OrganizationData | EventData | VideoData | LocalBusinessData | FAQData;
+}
+
+// Strip HTML tags; safe for SSR (no DOMParser on server)
+function stripHtmlTags(html: string): string {
+  if (globalThis.DOMParser !== undefined) {
+    const doc = new globalThis.DOMParser().parseFromString(html, 'text/html');
+    return doc.body?.textContent ?? '';
+  }
+  return html.replaceAll(/<[^>]{0,200}>/g, '').replaceAll(/\s{1,500}/g, ' ').trim();
+}
+
+export default function SchemaManager({ type, data }: Readonly<SchemaManagerProps>) {
+
+  const generateSchema = () => {
+    switch (type) {
+      case 'NewsArticle': {
+        const articleData = data as NewsArticleData;
+        return {
+          '@context': 'https://schema.org',
+          '@type': 'NewsArticle',
+          mainEntityOfPage: {
+            '@type': 'WebPage',
+            '@id': articleData.url,
+          },
+          headline: articleData.title,
+          image: articleData.image,
+          datePublished: articleData.publishedTime,
+          dateModified: articleData.modifiedTime || articleData.publishedTime,
+          author: {
+            '@type': 'Person',
+            name: articleData.authors || 'Argus News',
+          },
+          publisher: {
+            '@type': 'Organization',
+            name: articleData.publisher.name,
+            logo: {
+              '@type': 'ImageObject',
+              url: articleData.publisher.logo,
+            },
+          },
+          description: articleData.highlights
+            ? stripHtmlTags(articleData.highlights).slice(0, 300)
+            : articleData.description,
+          ...(articleData.articleBody && {
+            articleBody: stripHtmlTags(articleData.articleBody).slice(0, 5000),
+          }),
+          ...(articleData.keywords && articleData.keywords.length > 0 && {
+            keywords: articleData.keywords.join(', '),
+          }),
+          articleSection: articleData.category,
+        };
+      }
+
+      case 'BreadcrumbList': {
+        const breadcrumbData = data as BreadcrumbData;
+        return {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbData.items.map((item, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            name: item.name,
+            item: item.item,
+          })),
+        };
+      }
+
+      case 'Website': {
+        const websiteData = data as WebsiteData;
+        const websiteSchema: any = {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          '@id': 'argusnews.in',
+          name: websiteData.name,
+          url: websiteData.url,
+          description: websiteData.description,
+        };
+
+        if (websiteData.potentialAction) {
+          websiteSchema.potentialAction = {
+            '@type': 'SearchAction',
+            target: websiteData.potentialAction.target,
+            'query-input': websiteData.potentialAction.queryInput,
+          };
+        }
+
+        return websiteSchema;
+      }
+
+      case 'Organization': {
+        const orgData = data as OrganizationData;
+        const orgSchema: any = {
+          '@context': 'https://schema.org',
+          '@type': 'NewsMediaOrganization',
+          '@id': orgData.id,
+          name: orgData.name,
+          url: orgData.url,
+          logo: orgData.logo,
+          sameAs: orgData.sameAs,
+        };
+
+        if (orgData.contactPoint) {
+          orgSchema.contactPoint = {
+            '@type': 'ContactPoint',
+            telephone: orgData.contactPoint.telephone,
+            contactType: orgData.contactPoint.contactType,
+            areaServed: orgData.contactPoint.areaServed,
+            availableLanguage: orgData.contactPoint.availableLanguage,
+          };
+        }
+
+        return orgSchema;
+      }
+
+      case 'Event': {
+        const eventData = data as EventData;
+        return {
+          '@context': 'https://schema.org',
+          '@type': 'Event',
+          name: eventData.name,
+          startDate: eventData.startDate,
+          endDate: eventData.endDate,
+          location: {
+            '@type': 'Place',
+            name: eventData.location.name,
+            address: eventData.location.address,
+          },
+          description: eventData.description,
+          image: eventData.image,
+          organizer: {
+            '@type': 'Organization',
+            name: eventData.organizer.name,
+            url: eventData.organizer.url,
+          },
+        };
+      }
+
+      case 'VideoObject': {
+        const videoData = data as VideoData;
+        const videoSchema: any = {
+          '@context': 'https://schema.org',
+          '@type': 'VideoObject',
+          name: videoData.name,
+          description: videoData.description,
+          thumbnailUrl: videoData.thumbnailUrl,
+          uploadDate: videoData.uploadDate,
+          contentUrl: videoData.contentUrl,
+          embedUrl: videoData.embedUrl,
+        };
+
+        if (videoData.duration) {
+          videoSchema.duration = videoData.duration;
+        }
+
+        return videoSchema;
+      }
+
+      case 'LocalBusiness': {
+        const businessData = data as LocalBusinessData;
+        const businessSchema: any = {
+          '@context': 'https://schema.org',
+          '@type': 'LocalBusiness',
+          '@id': businessData.id,
+          name: businessData.name,
+          address: {
+            '@type': 'PostalAddress',
+            streetAddress: businessData.address.streetAddress,
+            addressLocality: businessData.address.addressLocality,
+            addressRegion: businessData.address.addressRegion,
+            postalCode: businessData.address.postalCode,
+            addressCountry: businessData.address.addressCountry,
+          },
+          url: businessData.url,
+        };
+
+        if (businessData.telephone) {
+          businessSchema.telephone = businessData.telephone;
+        }
+
+        if (businessData.geo) {
+          businessSchema.geo = {
+            '@type': 'GeoCoordinates',
+            latitude: businessData.geo.latitude,
+            longitude: businessData.geo.longitude,
+          };
+        }
+
+        return businessSchema;
+      }
+
+      case 'FAQPage': {
+        const faqData = data as FAQData;
+        return {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqData.questions.map(q => ({
+            '@type': 'Question',
+            name: q.question,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: q.answer,
+            },
+          })),
+        };
+      }
+
+      default: {
+        return null;
+      }
+    }
+  };
+
+  const schema = generateSchema();
+
+  if (!schema) return null;
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
